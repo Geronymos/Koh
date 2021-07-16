@@ -6,22 +6,30 @@ import math
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
 
+trained_file = "dataset_thispersondoesnotexist.json"
+trained_file = "dataset_kaggle.json"
+trained_file = "dataset_vgg_face_dataset_images.json"
 
-with open("faces.json", "r") as file:
+mp_face_mesh.FACE_CONNECTIONS
+
+def xyz_list_from_face(face):
+  important_landmarks = [face[important[0]] for important in mp_face_mesh.FACE_CONNECTIONS]
+  xyz_list = [[landmark["x"], landmark["y"], landmark["z"]] for landmark in important_landmarks]
+  xyz_list = [item for sublist in xyz_list for item in sublist]
+
+
+  return xyz_list
+
+def match_faces(xyz_face1, xyz_face2):
+  return math.dist(xyz_face1, xyz_face2)
+
+with open(trained_file, "r") as file:
   images_faces = json.load(file)
 
-def match_faces(face1, face2):
-  # dist1 = [[landmark["x"], landmark["y"], landmark["z"]] for landmark in face1]
-  dist1 = [[landmark["x"], landmark["y"]] for landmark in face1]
-  dist1 = [item for sublist in dist1 for item in sublist]
-  # print(len(dist1))
+  for image in images_faces:
+    xyz_list = xyz_list_from_face(image["faces"][0])
 
-  # dist2 = [[landmark["x"], landmark["y"], landmark["z"]] for landmark in face2]
-  dist2 = [[landmark["x"], landmark["y"]] for landmark in face2]
-  dist2 = [item for sublist in dist2 for item in sublist]
-  # print(len(dist2))
-
-  return math.dist(dist1, dist2)
+    image["xyz"] = xyz_list
 
 # For static images:
 drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
@@ -52,6 +60,12 @@ with mp_face_mesh.FaceMesh(
     # Draw the face mesh annotations on the image.
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    height, width, color = image.shape
+
+    cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Selected image', 800, 600)
+
     if results.multi_face_landmarks:
       for face_landmarks in results.multi_face_landmarks:
 
@@ -59,16 +73,32 @@ with mp_face_mesh.FaceMesh(
 
         # print(face_dict)
 
-        sorted_images = sorted(images_faces, key=lambda elem: match_faces(elem["faces"][0], face_dict))
+        face_xyz = xyz_list_from_face(face_dict)
+
+        sorted_images = sorted(images_faces, key=lambda elem: match_faces(elem["xyz"], face_xyz))
         top_image = sorted_images[0]["file"]
         print(top_image)
 
         image_match = cv2.imread(top_image)
+
         cv2.imshow('Selected image', image_match)
+
+        # for i in range(len(face_landmarks.landmark)-1):
+        #   landmark = face_landmarks.landmark[i]
+        #   pos = (int(landmark.x * width), int(landmark.y * height))
+        #   cv2.putText(
+        #     image, 
+        #     str(i), 
+        #     pos,
+        #     cv2.FONT_HERSHEY_SIMPLEX, 0.2, 
+        #     (0,255,0,255),
+        #     1
+        #     )
 
         mp_drawing.draw_landmarks(
             image=image,
             landmark_list=face_landmarks,
+            # landmark_list=top_image["faces"],
             connections=mp_face_mesh.FACE_CONNECTIONS,
             landmark_drawing_spec=drawing_spec,
             connection_drawing_spec=drawing_spec)
