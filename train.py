@@ -3,8 +3,11 @@ import mediapipe as mp
 from os import listdir
 from os.path import isfile, join
 import json
+from tqdm import tqdm
 
-mypath = "dataset"
+mypath = "dataset/vgg_face_dataset/images"
+# mypath = "dataset/thispersondoesnotexist"
+save_to=mypath.replace("/", "_") + ".json"
 
 onlyfiles = [f"{mypath}/{f}" for f in listdir(mypath) if isfile(join(mypath, f))]
 
@@ -24,10 +27,14 @@ with mp_face_mesh.FaceMesh(
     static_image_mode=True,
     max_num_faces=1,
     min_detection_confidence=0.5) as face_mesh:
-  for idx, file in enumerate(IMAGE_FILES):
+  pbar = tqdm(IMAGE_FILES)
+  for idx, file in enumerate(pbar):
     image = cv2.imread(file)
     # Convert the BGR image to RGB before processing.
-    results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    try:
+      results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    except:
+      continue
 
     # Print and draw face mesh landmarks on the image.
     if not results.multi_face_landmarks:
@@ -35,7 +42,8 @@ with mp_face_mesh.FaceMesh(
     annotated_image = image.copy()
 
     faces = [[{"x": landmark.x, "y": landmark.y, "z": landmark.z} for landmark in face.landmark] for face in results.multi_face_landmarks]
-    print(faces)
+    # print(faces)
+    
     # print(multi_face_landmarks_dict)
 
     images_faces.append({
@@ -44,5 +52,10 @@ with mp_face_mesh.FaceMesh(
       "faces": faces
     })
 
-  with open("faces.json", "w") as file:
+    pbar.write(file)
+    # pbar.set_postfix_str(file)
+    # pbar.set_description(file)
+    pbar.update(1)
+
+  with open(save_to, "w") as file:
     json.dump(images_faces, file)
