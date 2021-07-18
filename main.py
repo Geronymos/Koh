@@ -3,17 +3,24 @@ import mediapipe as mp
 import json
 import math
 
+import face_components
+
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
 
 trained_file = "dataset_thispersondoesnotexist.json"
+trained_file = "dataset_friends.json"
+trained_file = "dataset_jim_carrey.json"
+trained_file = "dataset_partyAllTheTime.json"
 trained_file = "dataset_kaggle.json"
 trained_file = "dataset_vgg_face_dataset_images.json"
+trained_file = "dataset_rickroll.json"
 
 mp_face_mesh.FACE_CONNECTIONS
 
 def xyz_list_from_face(face):
-  important_landmarks = [face[important[0]] for important in mp_face_mesh.FACE_CONNECTIONS]
+  # important_landmarks = [face[important[0]] for important in mp_face_mesh.FACE_CONNECTIONS]
+  important_landmarks = [face[important[0]] for important in face_components.components["lips"]]
   xyz_list = [[landmark["x"], landmark["y"], landmark["z"]] for landmark in important_landmarks]
   xyz_list = [item for sublist in xyz_list for item in sublist]
 
@@ -30,9 +37,6 @@ with open(trained_file, "r") as file:
     xyz_list = xyz_list_from_face(image["faces"][0])
 
     image["xyz"] = xyz_list
-
-# For static images:
-drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 
 # For webcam input:
 drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
@@ -83,23 +87,13 @@ with mp_face_mesh.FaceMesh(
 
         cv2.imshow('Selected image', image_match)
 
-        # for i in range(len(face_landmarks.landmark)-1):
-        #   landmark = face_landmarks.landmark[i]
-        #   pos = (int(landmark.x * width), int(landmark.y * height))
-        #   cv2.putText(
-        #     image, 
-        #     str(i), 
-        #     pos,
-        #     cv2.FONT_HERSHEY_SIMPLEX, 0.2, 
-        #     (0,255,0,255),
-        #     1
-        #     )
 
         mp_drawing.draw_landmarks(
             image=image,
             landmark_list=face_landmarks,
             # landmark_list=top_image["faces"],
-            connections=mp_face_mesh.FACE_CONNECTIONS,
+            # connections=mp_face_mesh.FACE_CONNECTIONS,
+            connections=face_components.components["lips"],
             landmark_drawing_spec=drawing_spec,
             connection_drawing_spec=drawing_spec)
     cv2.imshow('MediaPipe FaceMesh', image)
