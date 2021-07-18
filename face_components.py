@@ -1,3 +1,5 @@
+# https://github.com/google/mediapipe/blob/139237092fedef164a17840aceb4e628244f8173/mediapipe/python/solutions/face_mesh.py
+
 components = {
     "lips": {
         (61, 146),
@@ -171,3 +173,40 @@ components = {
         (109, 10)
     }
 }
+
+class ConnectionsSwitcher:
+  def __init__(self):
+    self.states = {
+    "every": True,
+    "face": True,
+    "face_oval": True,
+    "lips": True,
+    "right_eye": True,
+    "left_eye": True,
+    "right_eyebrow": True,
+    "left_eyebrow": True
+    }
+
+    self.face_component_keys = ["face_oval", "lips", "right_eye", "left_eye", "right_eyebrow", "left_eyebrow"]
+    self.range_list = [(i, i) for i in range(468)]
+
+  def set_state(self, name, value):
+    self.states[name] = value
+    if name == "every" or name == "face":
+      for key in self.face_component_keys:
+        self.states[key] = value
+
+  def switch_state(self, name):
+    self.set_state(name, not self.states[name])
+    
+  def get_combined(self):
+    face_component_list = []
+    for key in self.face_component_keys:
+      if self.states[key]:
+        for landmark in [*components[key]]:
+          face_component_list.append(landmark)
+
+    return {
+      "match": face_component_list,
+      "show": self.states["every"] and self.range_list or face_component_list
+    }
