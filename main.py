@@ -7,7 +7,7 @@ import csv
 import json
 import math
 
-import face_components
+from face_components import ConnectionsSwitcher, DatasetController, FaceConverter, LandmarkConverter
 
 # landmark_pb2.NormalizedLandmarkList
 
@@ -16,8 +16,6 @@ mp_face_mesh = mp.solutions.face_mesh
 
 trained_file = sys.argv[1]
 
-# important_landmarks = [face[important[0]] for important in connectionsSwitcher.get_combined()["show"]]
-
 class Koh:
   def __init__(self, images_faces):
     self.data = images_faces
@@ -25,7 +23,7 @@ class Koh:
     self.drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
     self.webcam = cv2.VideoCapture(0)
 
-    self.connectionsSwitcher = face_components.ConnectionsSwitcher()
+    self.connectionsSwitcher = ConnectionsSwitcher()
 
     self.running = True
 
@@ -44,7 +42,7 @@ class Koh:
           # If loading a video, use 'break' instead of 'continue'.
           continue
 
-        self.render(image)
+        self.main(image)
         self.key_events()
     
     self.webcam.release()
@@ -52,15 +50,7 @@ class Koh:
   def match_faces(self, vertices_list1, vertices_list2):
     return math.dist(vertices_list1, vertices_list2)
 
-  def vertices_list_from_face(self, face):
-    vertices_list = [[landmark.x, landmark.y, landmark.z] for landmark in face]
-    vertices_list = [item for sublist in vertices_list for item in sublist]
-
-    return vertices_list
-
-  def render(self, webcam_image):
-
-
+  def main(self, webcam_image):
     # flip
     webcam_image = cv2.cvtColor(cv2.flip(webcam_image, 1), cv2.COLOR_BGR2RGB)
     webcam_image.flags.writeable = False
@@ -76,16 +66,9 @@ class Koh:
     if results.multi_face_landmarks:
       for dataset_face_landmarks in results.multi_face_landmarks:
         
-        face_landmarks_list = [landmark for landmark in dataset_face_landmarks.landmark]
-
-        
-        important_landmarks_dataset = []
-        important_landmarks_webcam = []
-        for important in self.connectionsSwitcher.get_combined()["match"]:
-          important_landmarks_dataset.append(face_landmarks_list[ important[0] ])
-          important_landmarks_webcam.extend(self.data[ important[0]*3 : important[0]*3+2 ])
-
-        face_xyz = self.vertices_list_from_face([landmark for landmark in face_landmarks_list])
+        dataset_face_converter = FaceConverter()
+        dataset_face_converter.from_face(dataset_face_landmarks)
+        face_xyz = dataset_face_converter.to_vertices_list()
 
 
         sorted_images = sorted(self.data, key=lambda elem: self.match_faces(elem["data"], face_xyz))
@@ -94,12 +77,13 @@ class Koh:
 
         image_match = cv2.imread(top_image)
 
+  # def render(self, webcam_image):
     cv2.imshow('Selected image', image_match)
 
-    for i, key in enumerate(self.connectionsSwitcher.states):
+    for i, [key, value] in enumerate(self.connectionsSwitcher.states.items()):
       cv2.putText(
         webcam_image,
-        f"{key}: {self.connectionsSwitcher.states[key]}",
+        f"{key}: {value}",
         (width - 100, 10 * (i+1)),
         cv2.FONT_HERSHEY_SIMPLEX,
         .3, 
