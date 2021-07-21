@@ -174,7 +174,7 @@ components = {
     }
 }
 
-class ConnectionsSwitcher:
+class FeatureSwitcher:
   def __init__(self):
     self.states = {
     "every": True,
@@ -210,63 +210,3 @@ class ConnectionsSwitcher:
       "match": face_component_list,
       "show": self.states["every"] and self.range_list or face_component_list
     }
-
-class LandmarkConverter:
-  def __init__(self):
-    self.x = 0
-    self.y = 0
-    self.z = 0
-  def from_landmark(self, landmark):
-    self.x = landmark.x
-    self.y = landmark.y
-    self.z = landmark.z
-  def from_vertex(self, vertex):
-    x,y,z = vertex
-    self.x = x
-    self.y = y
-    self.z = z
-  def to_landmark(self):
-    normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
-    normalized_landmark.x = self.x
-    normalized_landmark.y = self.y
-    normalized_landmark.z = self.z
-    return normalized_landmark
-  def to_vertex(self):
-    return [self.x, self.y, self.z]
-
-class FaceConverter:
-  def __init__(self):
-    self.face = []
-  def from_face(self, face):
-    for landmark in face.landmark:
-      landmark_converter = LandmarkConverter()
-      landmark_converter.from_landmark(landmark)
-      self.face.append(landmark_converter)
-  def from_vertices_list(self, vertices_list):
-    for vertex in zip(*(iter(vertices_list),) * 3):
-      landmark_converter = LandmarkConverter()
-      landmark_converter.from_vertex(vertex)
-      self.face.append(landmark_converter)
-  def to_face(self):
-    normalized_landmark_list = mp.framework.formats.landmark_pb2.NormalizedLandmarkList()
-    for landmark in self.face:
-      normalized_landmark_list.landmark.append(landmark.to_landmark())
-    return normalized_landmark_list
-  def to_vertices_list(self):
-    vertices_list = []
-    for landmark in self.face:
-      vertices_list.extend(landmark.to_vertex())
-    
-    return vertices_list
-    
-class DatasetController:
-  def __init__(self):
-    self.faces = []
-
-  def important(self, important_components_list):
-    pass
-    # important_landmarks_dataset = []
-    # important_landmarks_webcam = []
-    # for important in self.connectionsSwitcher.get_combined()["match"]:
-    #   important_landmarks_dataset.append(face_landmarks_list[ important[0] ])
-    #   important_landmarks_webcam.extend(self.data[ important[0]*3 : important[0]*3+2 ])

@@ -6,102 +6,119 @@ import sys
 import csv
 import json
 import math
+from functools import reduce 
 
-from face_components import ConnectionsSwitcher, DatasetController, FaceConverter, LandmarkConverter
+from components.FeatureSwitcher   import FeatureSwitcher 
+from components.DatasetController import DatasetController
+from components.FaceConverter     import FaceConverter
+from components.LandmarkConverter import LandmarkConverter
+from components.TrackingHelper    import TrackingHelper
+
 
 # landmark_pb2.NormalizedLandmarkList
 
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
 
-trained_file = sys.argv[1]
+dataset_filename = sys.argv[1]
 
 class Koh:
-  def __init__(self, images_faces):
-    self.data = images_faces
+  def __init__(self, filename):
+    self.dataset = self.load_from_file(filename)
+    self.featureSwitcher = FeatureSwitcher()
+
+    self.running = True
 
     self.drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
     self.webcam = cv2.VideoCapture(0)
 
-    self.connectionsSwitcher = ConnectionsSwitcher()
-
-    self.running = True
-
     cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
     cv2.resizeWindow('Selected image', 800, 600)
     
-    with mp_face_mesh.FaceMesh(
-        max_num_faces=1,
-        min_detection_confidence=0.5,
-        # min_tracking_confidence=0.5
-        ) as self.face_mesh:
+    with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as self.face_mesh:
       while self.webcam.isOpened() and self.running:
         success, image = self.webcam.read()
-        if not success:
-          print("Ignoring empty camera frame.")
+        if success: 
+          self.main(image)
+          self.key_events()
+        else:
           # If loading a video, use 'break' instead of 'continue'.
+          print("Ignoring empty camera frame.")
           continue
-
-        self.main(image)
-        self.key_events()
     
     self.webcam.release()
 
-  def match_faces(self, vertices_list1, vertices_list2):
-    return math.dist(vertices_list1, vertices_list2)
+  def load_from_file(self, filename):
+
+    dataset_faces = []
+
+    with open(filename, "r") as file:
+      csv_reader = csv.reader(file)
+
+      for image_file, *positions in csv_reader:
+        face_converter = FaceConverter(image_name=image_file)
+        face_converter.from_vertices_list([float(position) for position in positions])
+        dataset_faces.append(face_converter)
+
+    return DatasetController(dataset_faces)
 
   def main(self, webcam_image):
-    # flip
-    webcam_image = cv2.cvtColor(cv2.flip(webcam_image, 1), cv2.COLOR_BGR2RGB)
-    webcam_image.flags.writeable = False
+    track = TrackingHelper(self.face_mesh, webcam_image)
 
-    # track face
-    results = self.face_mesh.process(webcam_image)
+    matches = self.dataset.match(track.faces[0], self.featureSwitcher.get_combined()["show"])
 
-    webcam_image.flags.writeable = True
-    webcam_image = cv2.cvtColor(webcam_image, cv2.COLOR_RGB2BGR)
+    # for webcam_face in track.faces:
 
-    height, width, _color = webcam_image.shape
+    #   webcam_face = webcam_face.to_face()
+    #   face_xyz = webcam_face.to_vertices_list()
 
-    if results.multi_face_landmarks:
-      for dataset_face_landmarks in results.multi_face_landmarks:
-        
-        dataset_face_converter = FaceConverter()
-        dataset_face_converter.from_face(dataset_face_landmarks)
-        face_xyz = dataset_face_converter.to_vertices_list()
+    #   sorted_images = sorted(self.dataset, key=lambda elem: self.match_faces(elem["data"], face_xyz))
+    #   top_image = sorted_images[0]["file"]
+    #   print(top_image)
 
-
-        sorted_images = sorted(self.data, key=lambda elem: self.match_faces(elem["data"], face_xyz))
-        top_image = sorted_images[0]["file"]
-        print(top_image)
-
-        image_match = cv2.imread(top_image)
+    #   image_match = cv2.imread(top_image)
 
   # def render(self, webcam_image):
-    cv2.imshow('Selected image', image_match)
+    if len(matches) != 0:
+      cv2.imshow('Selected image', cv2.imread(matches[0].image))
 
-    for i, [key, value] in enumerate(self.connectionsSwitcher.states.items()):
+    for i, [key, value] in enumerate(self.featureSwitcher.states.items()):
       cv2.putText(
-        webcam_image,
+        track.image,
         f"{key}: {value}",
-        (width - 100, 10 * (i+1)),
+        (track.width - 100, 10 * (i+1)),
         cv2.FONT_HERSHEY_SIMPLEX,
         .3, 
         (255, 255, 255, 255),
         1
       )
 
-    mp_drawing.draw_landmarks(
-        image=webcam_image,
-        landmark_list=dataset_face_landmarks,
-        connections=self.connectionsSwitcher.get_combined()["match"],
-        landmark_drawing_spec=self.drawing_spec,
-        connection_drawing_spec=self.drawing_spec)
+    # mp_drawing.draw_landmarks(
+    #     image=track.image,
+    #     landmark_list=track.faces[0].to_face(),
+    #     connections=self.featureSwitcher.get_combined()["match"],
+    #     landmark_drawing_spec=self.drawing_spec,
+    #     connection_drawing_spec=self.drawing_spec)
 
-    cv2.imshow('MediaPipe FaceMesh', webcam_image)
+    cv2.imshow('MediaPipe FaceMesh', track.image)
 
   def key_events(self):
+    key_action = {
+      "a": "ever",
+      "f": "face",
+      "o": "face_oval",
+      "m": "lips",
+      "r": "right_eye",
+      "y": "left_eyebrow",
+      "l": "left_eye",
+      "x": "right_eyebrow",
+    }
+
     key = cv2.waitKey(1) & 0xFF
+
+    # if key 
+    # self.connectionsSwitcher.switch_state()
+
     if key is ord("q"): 
       self.running = False
     elif key is ord("a"): # all
@@ -121,18 +138,4 @@ class Koh:
     elif key is ord("x"): # right eyebrow
       self.connectionsSwitcher.switch_state("right_eyebrow")
 
-
-images_faces = []
-
-with open(trained_file, "r") as file:
-  # images_faces = json.load(file)
-  csv_reader = csv.reader(file)
-
-  for image_file, *positions in csv_reader:
-    # csv.process(row)
-    images_faces.append({
-      "file": image_file,
-      "data": [float(position) for position in positions]
-    })
-
-many_faces = Koh(images_faces)
+many_faces = Koh(dataset_filename)
