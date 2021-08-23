@@ -31,9 +31,6 @@ drawing_spec_webcam = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 drawing_spec_match = mp_drawing.DrawingSpec(thickness=1, circle_radius=1,color=(0,0,255))
 webcam = cv2.VideoCapture(0)
 
-cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
-cv2.resizeWindow('Selected image', 800, 600)
-
 
 dataset_faces = []
 
@@ -74,6 +71,8 @@ with open(dataset_filename, "r") as file:
       "important": important
     })
 
+cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('Selected image', 800, 600)
 # def calc_important_landmarks()
 
 def main(webcam_image):
