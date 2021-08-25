@@ -7,12 +7,13 @@ import csv
 import json
 import math
 from functools import reduce 
+from itertools import chain
 
 from components.FeatureSwitcher   import FeatureSwitcher 
-from components.DatasetController import DatasetController
-from components.FaceConverter     import FaceConverter
-from components.LandmarkConverter import LandmarkConverter
-from components.TrackingHelper    import TrackingHelper
+# from components.DatasetController import DatasetController
+# from components.FaceConverter     import FaceConverter
+# from components.LandmarkConverter import LandmarkConverter
+# from components.TrackingHelper    import TrackingHelper
 
 
 # landmark_pb2.NormalizedLandmarkList
@@ -22,120 +23,180 @@ mp_face_mesh = mp.solutions.face_mesh
 
 dataset_filename = sys.argv[1]
 
-class Koh:
-  def __init__(self, filename):
-    self.dataset = self.load_from_file(filename)
-    self.featureSwitcher = FeatureSwitcher()
+feature_switcher = FeatureSwitcher()
 
-    self.running = True
+running = True
 
-    self.drawing_spec = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
-    self.webcam = cv2.VideoCapture(0)
+drawing_spec_webcam = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
+drawing_spec_match = mp_drawing.DrawingSpec(thickness=1, circle_radius=1,color=(0,0,255))
+webcam = cv2.VideoCapture(0)
 
-    cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Selected image', 800, 600)
+
+dataset_faces = []
+
+class Face:
+  def __init__(self, landmarks = []):
+    self.landmark = landmarks
+
+with open(dataset_filename, "r") as file:
+  csv_reader = csv.reader(file)
+
+  dataset = []
+
+  for image_file, *positions in csv_reader:
     
-    with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as self.face_mesh:
-      while self.webcam.isOpened() and self.running:
-        success, image = self.webcam.read()
-        if success: 
-          self.main(image)
-          self.key_events()
-        else:
-          # If loading a video, use 'break' instead of 'continue'.
-          print("Ignoring empty camera frame.")
-          continue
-    
-    self.webcam.release()
+    positions = [float(position) for position in positions]
 
-  def load_from_file(self, filename):
+    landmarks = []
 
-    dataset_faces = []
+    triplets = [*zip(*(iter(positions),) * 3)]
 
-    with open(filename, "r") as file:
-      csv_reader = csv.reader(file)
+    for x,y,z in triplets:
+      normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
+      normalized_landmark.x = x
+      normalized_landmark.y = y
+      normalized_landmark.z = z
+      landmarks.append(normalized_landmark)
 
-      for image_file, *positions in csv_reader:
-        face_converter = FaceConverter(image_name=image_file)
-        face_converter.from_vertices_list([float(position) for position in positions])
-        dataset_faces.append(face_converter)
+    features = feature_switcher.get_combined()["show"]
+    important = []
+    for feature in features:
+      important.extend(triplets[feature[0]])
 
-    return DatasetController(dataset_faces)
+    dataset.append({
+      "filename": image_file,
+      "landmarks": Face(landmarks),
+      "vertices": positions,
+      "triplets": triplets,
+      "important": important
+    })
 
-  def main(self, webcam_image):
-    track = TrackingHelper(self.face_mesh, webcam_image)
+cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('Selected image', 800, 600)
+# def calc_important_landmarks()
 
-    matches = self.dataset.match(track.faces[0], self.featureSwitcher.get_combined()["show"])
+def main(webcam_image):
 
-    # for webcam_face in track.faces:
+  width, height, _color = webcam_image.shape
+  # Flip the image horizontally for a later selfie-view display, and convert
+  # the BGR image to RGB.
+  webcam_image = cv2.cvtColor(cv2.flip(webcam_image, 1), cv2.COLOR_BGR2RGB)
+  # To improve performance, optionally mark the image as not writeable to
+  # pass by reference.
+  webcam_image.flags.writeable = False
+  results = face_mesh.process(webcam_image)
 
-    #   webcam_face = webcam_face.to_face()
-    #   face_xyz = webcam_face.to_vertices_list()
+  # Draw the face mesh annotations on the image.
+  webcam_image.flags.writeable = True
+  webcam_image = cv2.cvtColor(webcam_image, cv2.COLOR_RGB2BGR)
 
-    #   sorted_images = sorted(self.dataset, key=lambda elem: self.match_faces(elem["data"], face_xyz))
-    #   top_image = sorted_images[0]["file"]
-    #   print(top_image)
+  features = feature_switcher.get_combined()
+  
+  if results.multi_face_landmarks:
+    for face_landmarks in results.multi_face_landmarks:
 
-    #   image_match = cv2.imread(top_image)
+      
 
-  # def render(self, webcam_image):
-    if len(matches) != 0:
-      cv2.imshow('Selected image', cv2.imread(matches[0].image))
+      important_webcam = [face_landmarks.landmark[important[0]] for important in features["show"]]
+        # [*chain([face["triplets"][important[0]] for important in features])]
 
-    for i, [key, value] in enumerate(self.featureSwitcher.states.items()):
-      cv2.putText(
-        track.image,
-        f"{key}: {value}",
-        (track.width - 100, 10 * (i+1)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        .3, 
-        (255, 255, 255, 255),
-        1
-      )
+      face_vertices = []
+      for landmark in important_webcam:
+        face_vertices.append(landmark.x)
+        face_vertices.append(landmark.y)
+        face_vertices.append(landmark.z)
 
-    # mp_drawing.draw_landmarks(
-    #     image=track.image,
-    #     landmark_list=track.faces[0].to_face(),
-    #     connections=self.featureSwitcher.get_combined()["match"],
-    #     landmark_drawing_spec=self.drawing_spec,
-    #     connection_drawing_spec=self.drawing_spec)
+      print(len(dataset[0]["important"]), len(face_vertices))
 
-    cv2.imshow('MediaPipe FaceMesh', track.image)
+      sorted_images = sorted(dataset, key=lambda elem: math.dist(face_vertices, elem["important"]))
+      top_image = sorted_images[0]["filename"]
+      # print(top_image)
 
-  def key_events(self):
-    key_action = {
-      "a": "ever",
-      "f": "face",
-      "o": "face_oval",
-      "m": "lips",
-      "r": "right_eye",
-      "y": "left_eyebrow",
-      "l": "left_eye",
-      "x": "right_eyebrow",
-    }
+      image_match = cv2.imread(top_image)
 
-    key = cv2.waitKey(1) & 0xFF
+      mp_drawing.draw_landmarks(
+          image=webcam_image,
+          landmark_list=sorted_images[0]["landmarks"],
+          connections=feature_switcher.get_combined()["match"],
+          landmark_drawing_spec=drawing_spec_match,
+          connection_drawing_spec=drawing_spec_match)
 
-    # if key 
-    # self.connectionsSwitcher.switch_state()
+      cv2.imshow('Selected image', image_match)
 
-    if key is ord("q"): 
-      self.running = False
-    elif key is ord("a"): # all
-      self.connectionsSwitcher.switch_state("every")
-    elif key is ord("f"): # face
-      self.connectionsSwitcher.switch_state("face")
-    elif key is ord("o"): # oval
-      self.connectionsSwitcher.switch_state("face_oval")
-    elif key is ord("m"): # mouth/lips
-      self.connectionsSwitcher.switch_state("lips")
-    elif key is ord("r"): # right eye
-      self.connectionsSwitcher.switch_state("right_eye")
-    elif key is ord("y"): # left eyebrow
-      self.connectionsSwitcher.switch_state("left_eyebrow")
-    elif key is ord("l"): # left eye
-      self.connectionsSwitcher.switch_state("left_eye")
-    elif key is ord("x"): # right eyebrow
-      self.connectionsSwitcher.switch_state("right_eyebrow")
+      # show webcam image with wireframe
+      mp_drawing.draw_landmarks(
+          image=webcam_image,
+          landmark_list=face_landmarks,
+          connections=features["match"],
+          landmark_drawing_spec=drawing_spec_webcam,
+          connection_drawing_spec=drawing_spec_webcam)
 
-many_faces = Koh(dataset_filename)
+  for i, [key, value] in enumerate(feature_switcher.states.items()):
+    cv2.putText(
+      webcam_image,
+      f"{key}: {value}",
+      (width - 100, 10 * (i+1)),
+      cv2.FONT_HERSHEY_SIMPLEX,
+      .3, 
+      (255, 255, 255, 255),
+      1
+    )
+
+  cv2.imshow('MediaPipe FaceMesh', webcam_image)
+
+def key_events():
+  key_action = {
+    "a": "ever",
+    "f": "face",
+    "o": "face_oval",
+    "m": "lips",
+    "r": "right_eye",
+    "y": "left_eyebrow",
+    "l": "left_eye",
+    "x": "right_eyebrow",
+  }
+
+  key = cv2.waitKey(1) & 0xFF
+
+  # if key 
+  # self.feature_switcher.switch_state()
+  global running
+
+  if key is ord("q"): 
+    running = False
+  elif key is ord("a"): # all
+    feature_switcher.switch_state("every")
+  elif key is ord("f"): # face
+    feature_switcher.switch_state("face")
+  elif key is ord("o"): # oval
+    feature_switcher.switch_state("face_oval")
+  elif key is ord("m"): # mouth/lips
+    feature_switcher.switch_state("lips")
+  elif key is ord("r"): # right eye
+    feature_switcher.switch_state("right_eye")
+  elif key is ord("y"): # left eyebrow
+    feature_switcher.switch_state("left_eyebrow")
+  elif key is ord("l"): # left eye
+    feature_switcher.switch_state("left_eye")
+  elif key is ord("x"): # right eyebrow
+    feature_switcher.switch_state("right_eyebrow")
+
+  if key > -1:
+    features = feature_switcher.get_combined()["show"]
+    for face in dataset:
+      face["important"] = []
+      for important in features:
+        face["important"].extend(face["triplets"][important[0]])
+
+with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as face_mesh:
+  while webcam.isOpened() and running:
+    success, image = webcam.read()
+    if success: 
+      main(image)
+      key_events()
+    else:
+      # If loading a video, use 'break' instead of 'continue'.
+      print("Ignoring empty camera frame.")
+      continue
+
+webcam.release()
