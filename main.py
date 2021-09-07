@@ -3,10 +3,7 @@
 import cv2
 import mediapipe as mp
 import sys
-import csv
 import math
-from functools import reduce 
-from itertools import chain
 import pyvirtualcam
 
 from components.FeatureSwitcher import FeatureSwitcher
@@ -105,11 +102,16 @@ def main():
 
   """ track webcam face  """
   with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as face_mesh:
-    while webcam.isOpened() and running:
+    while webcam.isOpened() and feature_switcher.states["running"]:
       success, image = webcam.read()
       if success: 
+        features = feature_switcher.key_events()
+        for face in dataset:
+          face["important"] = []
+          for important in features:
+            face["important"].extend(face["triplets"][important[0]])
+
         match(face_mesh, image, dataset)
-        feature_switcher.key_events(dataset, running)
       else:
         # If loading a video, use 'break' instead of 'continue'.
         print("Ignoring empty camera frame.")

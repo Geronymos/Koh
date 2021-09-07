@@ -179,14 +179,15 @@ components = {
 class FeatureSwitcher:
   def __init__(self):
     self.states = {
-    "every": True,
-    "face": True,
-    "face_oval": True,
-    "lips": True,
-    "right_eye": True,
-    "left_eye": True,
-    "right_eyebrow": True,
-    "left_eyebrow": True
+      "running": True,
+      "every": True,
+      "face": True,
+      "face_oval": True,
+      "lips": True,
+      "right_eye": True,
+      "left_eye": True,
+      "right_eyebrow": True,
+      "left_eyebrow": True
     }
 
     self.face_component_keys = ["face_oval", "lips", "right_eye", "left_eye", "right_eyebrow", "left_eyebrow"]
@@ -213,8 +214,9 @@ class FeatureSwitcher:
       "show": self.states["every"] and self.range_list or face_component_list
     }
 
-  def key_events(self, dataset, running):
+  def key_events(self):
     key_action = {
+      "q": "running",
       "a": "every",
       "f": "face",
       "o": "face_oval",
@@ -231,12 +233,6 @@ class FeatureSwitcher:
       if key_pressed is ord(key):
         self.switch_state(action)
 
-    if key_pressed is ord("q"): 
-      running = False
-
     if key_pressed > -1:
       features = self.get_combined()["show"]
-      for face in dataset:
-        face["important"] = []
-        for important in features:
-          face["important"].extend(face["triplets"][important[0]])
+      return features
