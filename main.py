@@ -10,12 +10,10 @@ import numpy as np
 from components.FeatureSwitcher import FeatureSwitcher
 from components.loader import read_dataset
 
-running = True
-
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
 
-# define color of landmarks
+"""  define color of landmarks """
 drawing_spec_webcam = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 drawing_spec_match = mp_drawing.DrawingSpec(thickness=1, circle_radius=1,color=(0,0,255))
 
@@ -23,12 +21,12 @@ feature_switcher = FeatureSwitcher()
 
 def match(face_mesh, webcam_image, dataset):
 
-  # To improve performance, optionally mark the image as not writeable to
-  # pass by reference.
+  """ To improve performance, optionally mark the image as not writeable to
+  pass by reference. """
   webcam_image.flags.writeable = False
   results = face_mesh.process(webcam_image)
 
-  # Draw the face mesh annotations on the image.
+  """ Draw the face mesh annotations on the image. """
   webcam_image.flags.writeable = True
   webcam_image = cv2.cvtColor(webcam_image, cv2.COLOR_RGB2BGR)
 
@@ -39,14 +37,16 @@ def match(face_mesh, webcam_image, dataset):
 
   for face_landmarks in results.multi_face_landmarks:
 
+    """ get important landmarks for webcam """
     important_webcam = [face_landmarks.landmark[important[0]] for important in features["show"]]
-      # [*chain([face["triplets"][important[0]] for important in features])]
 
     face_vertices = []
     for landmark in important_webcam:
       face_vertices.append(landmark.x)
       face_vertices.append(landmark.y)
       face_vertices.append(landmark.z)
+
+    """ get top match """
 
     sorted_images = sorted(dataset, key=lambda elem: math.dist(face_vertices, elem["important"]))
     top_image = sorted_images[0]
@@ -57,15 +57,19 @@ def match(face_mesh, webcam_image, dataset):
 
 def main():
 
-  # get dataset file path as first parameter
+  """ get dataset file path as first parameter """
   dataset_filename = sys.argv[1]
 
   webcam = cv2.VideoCapture(0)
+
+  """ create windows """
 
   cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
   cv2.resizeWindow('Selected image', 800, 600)
 
   dataset = read_dataset(dataset_filename)
+
+  """ setup virtual camera """
 
   fmt = pyvirtualcam.PixelFormat.BGR
   with pyvirtualcam.Camera(width=1280, height=720, fps=20, fmt=fmt) as cam:
@@ -79,14 +83,16 @@ def main():
         success, image = webcam.read()
 
         if not success:
-          # If loading a video, use 'break' instead of 'continue'.
+          """  If loading a video, use 'break' instead of 'continue'. """
           print("Ignoring empty camera frame.")
           continue 
 
-        # Flip the image horizontally for a later selfie-view display, and convert
-        # the BGR image to RGB.
+        """ Flip the image horizontally for a later selfie-view display, and convert
+        the BGR image to RGB. """
         webcam_image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
         width, height, _color = webcam_image.shape
+
+        """ mark important landmarks in dataset """
 
         features = feature_switcher.key_events()
         for face in dataset:
@@ -100,6 +106,8 @@ def main():
           continue
 
         image_match = cv2.imread(top_image["filename"])
+
+        """ draw landmarks """
 
         mp_drawing.draw_landmarks(
             image=webcam_image,
@@ -131,6 +139,8 @@ def main():
           )
 
         cv2.imshow('MediaPipe FaceMesh', webcam_image)
+
+        """ send virtual webcam frame """
 
         frame = cv2.resize(image_match, (cam.width, cam.height), interpolation=cv2.BORDER_DEFAULT)
         cam.send(frame)
