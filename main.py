@@ -9,7 +9,8 @@ from functools import reduce
 from itertools import chain
 import pyvirtualcam
 
-from components.FeatureSwitcher import FeatureSwitcher 
+from components.FeatureSwitcher import FeatureSwitcher
+from components.loader import read_dataset
 
 running = True
 
@@ -21,46 +22,6 @@ drawing_spec_webcam = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 drawing_spec_match = mp_drawing.DrawingSpec(thickness=1, circle_radius=1,color=(0,0,255))
 
 feature_switcher = FeatureSwitcher()
-
-class Face:
-  def __init__(self, landmarks = []):
-    self.landmark = landmarks
-
-def read_dataset(path):
-  with open(path, "r") as file:
-    csv_reader = csv.reader(file)
-
-    dataset = []
-
-    for image_file, *positions in csv_reader:
-      
-      positions = [float(position) for position in positions]
-
-      landmarks = []
-
-      triplets = [*zip(*(iter(positions),) * 3)]
-
-      for x,y,z in triplets:
-        normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
-        normalized_landmark.x = x
-        normalized_landmark.y = y
-        normalized_landmark.z = z
-        landmarks.append(normalized_landmark)
-
-      features = feature_switcher.get_combined()["show"]
-      important = []
-      for feature in features:
-        important.extend(triplets[feature[0]])
-
-      dataset.append({
-        "filename": image_file,
-        "landmarks": Face(landmarks),
-        "vertices": positions,
-        "triplets": triplets,
-        "important": important
-      })
-
-      return dataset
 
 def match(face_mesh, webcam_image, dataset):
 
@@ -91,11 +52,10 @@ def match(face_mesh, webcam_image, dataset):
         face_vertices.append(landmark.y)
         face_vertices.append(landmark.z)
 
-      print(len(dataset[0]["important"]), len(face_vertices))
-
       sorted_images = sorted(dataset, key=lambda elem: math.dist(face_vertices, elem["important"]))
       top_image = sorted_images[0]["filename"]
       # print(top_image)
+      print(top_image, len(dataset[0]["important"]), len(face_vertices))
 
       image_match = cv2.imread(top_image)
 
@@ -131,52 +91,6 @@ def match(face_mesh, webcam_image, dataset):
   cv2.imshow('MediaPipe FaceMesh', webcam_image)
 
 
-"""  register keys to controll which face features should be matched """
-
-def key_events(dataset):
-  key_action = {
-    "a": "ever",
-    "f": "face",
-    "o": "face_oval",
-    "m": "lips",
-    "r": "right_eye",
-    "y": "left_eyebrow",
-    "l": "left_eye",
-    "x": "right_eyebrow",
-  }
-
-  key = cv2.waitKey(1) & 0xFF
-
-  # if key 
-  # self.feature_switcher.switch_state()
-  global running
-
-  if key is ord("q"): 
-    running = False
-  elif key is ord("a"): # all
-    feature_switcher.switch_state("every")
-  elif key is ord("f"): # face
-    feature_switcher.switch_state("face")
-  elif key is ord("o"): # oval
-    feature_switcher.switch_state("face_oval")
-  elif key is ord("m"): # mouth/lips
-    feature_switcher.switch_state("lips")
-  elif key is ord("r"): # right eye
-    feature_switcher.switch_state("right_eye")
-  elif key is ord("y"): # left eyebrow
-    feature_switcher.switch_state("left_eyebrow")
-  elif key is ord("l"): # left eye
-    feature_switcher.switch_state("left_eye")
-  elif key is ord("x"): # right eyebrow
-    feature_switcher.switch_state("right_eyebrow")
-
-  if key > -1:
-    features = feature_switcher.get_combined()["show"]
-    for face in dataset:
-      face["important"] = []
-      for important in features:
-        face["important"].extend(face["triplets"][important[0]])
-
 def main():
 
   # get dataset file path as first parameter
@@ -195,7 +109,7 @@ def main():
       success, image = webcam.read()
       if success: 
         match(face_mesh, image, dataset)
-        key_events(dataset)
+        feature_switcher.key_events(dataset, running)
       else:
         # If loading a video, use 'break' instead of 'continue'.
         print("Ignoring empty camera frame.")

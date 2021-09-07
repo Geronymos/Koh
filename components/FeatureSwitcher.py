@@ -1,3 +1,5 @@
+import cv2
+
 # https://github.com/google/mediapipe/blob/139237092fedef164a17840aceb4e628244f8173/mediapipe/python/solutions/face_mesh.py
 
 components = {
@@ -210,3 +212,31 @@ class FeatureSwitcher:
       "match": face_component_list,
       "show": self.states["every"] and self.range_list or face_component_list
     }
+
+  def key_events(self, dataset, running):
+    key_action = {
+      "a": "every",
+      "f": "face",
+      "o": "face_oval",
+      "m": "lips",
+      "r": "right_eye",
+      "y": "left_eyebrow",
+      "l": "left_eye",
+      "x": "right_eyebrow",
+    }
+
+    key_pressed = cv2.waitKey(1) & 0xFF
+
+    for key, action in key_action.items():
+      if key_pressed is ord(key):
+        self.switch_state(action)
+
+    if key_pressed is ord("q"): 
+      running = False
+
+    if key_pressed > -1:
+      features = self.get_combined()["show"]
+      for face in dataset:
+        face["important"] = []
+        for important in features:
+          face["important"].extend(face["triplets"][important[0]])
