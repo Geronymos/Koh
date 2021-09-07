@@ -4,78 +4,65 @@ import cv2
 import mediapipe as mp
 import sys
 import csv
-import json
 import math
 from functools import reduce 
 from itertools import chain
+import pyvirtualcam
 
-from components.FeatureSwitcher   import FeatureSwitcher 
-# from components.DatasetController import DatasetController
-# from components.FaceConverter     import FaceConverter
-# from components.LandmarkConverter import LandmarkConverter
-# from components.TrackingHelper    import TrackingHelper
+from components.FeatureSwitcher import FeatureSwitcher 
 
-
-# landmark_pb2.NormalizedLandmarkList
+running = True
 
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
 
-dataset_filename = sys.argv[1]
-
-feature_switcher = FeatureSwitcher()
-
-running = True
-
+# define color of landmarks
 drawing_spec_webcam = mp_drawing.DrawingSpec(thickness=1, circle_radius=1)
 drawing_spec_match = mp_drawing.DrawingSpec(thickness=1, circle_radius=1,color=(0,0,255))
-webcam = cv2.VideoCapture(0)
 
-
-dataset_faces = []
+feature_switcher = FeatureSwitcher()
 
 class Face:
   def __init__(self, landmarks = []):
     self.landmark = landmarks
 
-with open(dataset_filename, "r") as file:
-  csv_reader = csv.reader(file)
+def read_dataset(path):
+  with open(path, "r") as file:
+    csv_reader = csv.reader(file)
 
-  dataset = []
+    dataset = []
 
-  for image_file, *positions in csv_reader:
-    
-    positions = [float(position) for position in positions]
+    for image_file, *positions in csv_reader:
+      
+      positions = [float(position) for position in positions]
 
-    landmarks = []
+      landmarks = []
 
-    triplets = [*zip(*(iter(positions),) * 3)]
+      triplets = [*zip(*(iter(positions),) * 3)]
 
-    for x,y,z in triplets:
-      normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
-      normalized_landmark.x = x
-      normalized_landmark.y = y
-      normalized_landmark.z = z
-      landmarks.append(normalized_landmark)
+      for x,y,z in triplets:
+        normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
+        normalized_landmark.x = x
+        normalized_landmark.y = y
+        normalized_landmark.z = z
+        landmarks.append(normalized_landmark)
 
-    features = feature_switcher.get_combined()["show"]
-    important = []
-    for feature in features:
-      important.extend(triplets[feature[0]])
+      features = feature_switcher.get_combined()["show"]
+      important = []
+      for feature in features:
+        important.extend(triplets[feature[0]])
 
-    dataset.append({
-      "filename": image_file,
-      "landmarks": Face(landmarks),
-      "vertices": positions,
-      "triplets": triplets,
-      "important": important
-    })
+      dataset.append({
+        "filename": image_file,
+        "landmarks": Face(landmarks),
+        "vertices": positions,
+        "triplets": triplets,
+        "important": important
+      })
 
-cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
-cv2.resizeWindow('Selected image', 800, 600)
-# def calc_important_landmarks()
+      return dataset
 
-def main(webcam_image):
+def match(face_mesh, webcam_image, dataset):
 
   width, height, _color = webcam_image.shape
   # Flip the image horizontally for a later selfie-view display, and convert
@@ -94,8 +81,6 @@ def main(webcam_image):
   
   if results.multi_face_landmarks:
     for face_landmarks in results.multi_face_landmarks:
-
-      
 
       important_webcam = [face_landmarks.landmark[important[0]] for important in features["show"]]
         # [*chain([face["triplets"][important[0]] for important in features])]
@@ -131,6 +116,7 @@ def main(webcam_image):
           landmark_drawing_spec=drawing_spec_webcam,
           connection_drawing_spec=drawing_spec_webcam)
 
+  # display the state of which featues should be matched 
   for i, [key, value] in enumerate(feature_switcher.states.items()):
     cv2.putText(
       webcam_image,
@@ -144,7 +130,10 @@ def main(webcam_image):
 
   cv2.imshow('MediaPipe FaceMesh', webcam_image)
 
-def key_events():
+
+"""  register keys to controll which face features should be matched """
+
+def key_events(dataset):
   key_action = {
     "a": "ever",
     "f": "face",
@@ -188,15 +177,31 @@ def key_events():
       for important in features:
         face["important"].extend(face["triplets"][important[0]])
 
-with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as face_mesh:
-  while webcam.isOpened() and running:
-    success, image = webcam.read()
-    if success: 
-      main(image)
-      key_events()
-    else:
-      # If loading a video, use 'break' instead of 'continue'.
-      print("Ignoring empty camera frame.")
-      continue
+def main():
 
-webcam.release()
+  # get dataset file path as first parameter
+  dataset_filename = sys.argv[1]
+
+  webcam = cv2.VideoCapture(0)
+
+  cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
+  cv2.resizeWindow('Selected image', 800, 600)
+
+  dataset = read_dataset(dataset_filename)
+
+  """ track webcam face  """
+  with mp_face_mesh.FaceMesh( max_num_faces=1, min_detection_confidence=0.5 ) as face_mesh:
+    while webcam.isOpened() and running:
+      success, image = webcam.read()
+      if success: 
+        match(face_mesh, image, dataset)
+        key_events(dataset)
+      else:
+        # If loading a video, use 'break' instead of 'continue'.
+        print("Ignoring empty camera frame.")
+        continue
+  
+  webcam.release()
+
+if __name__ == "__main__":
+    main()
