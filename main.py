@@ -108,15 +108,19 @@ def main(webcam_image):
 
       print(len(dataset[0]["important"]), len(face_vertices))
 
-      sorted_images = sorted(dataset, key=lambda elem: math.dist(face_vertices, elem["important"]))
-      top_image = sorted_images[0]["filename"]
+      # sorted_images = sorted(dataset, key=lambda elem: math.dist(face_vertices, elem["important"]))
+      # top_image = sorted_images[0]["filename"]
+      top_image = min(
+              dataset, 
+              key=lambda elem: math.dist(face_vertices, elem["important"])
+              )
       # print(top_image)
 
-      image_match = cv2.imread(top_image)
+      image_match = cv2.imread(top_image["filename"])
 
       mp_drawing.draw_landmarks(
           image=webcam_image,
-          landmark_list=sorted_images[0]["landmarks"],
+          landmark_list=top_image["landmarks"],
           connections=feature_switcher.get_combined()["match"],
           landmark_drawing_spec=drawing_spec_match,
           connection_drawing_spec=drawing_spec_match)
