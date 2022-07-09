@@ -8,6 +8,8 @@ import json
 import math
 from functools import reduce 
 from itertools import chain
+# from scipy.spatial import KDTree
+from components.loader import load
 
 from components.FeatureSwitcher   import FeatureSwitcher 
 # from components.DatasetController import DatasetController
@@ -34,42 +36,7 @@ webcam = cv2.VideoCapture(0)
 
 dataset_faces = []
 
-class Face:
-  def __init__(self, landmarks = []):
-    self.landmark = landmarks
-
-with open(dataset_filename, "r") as file:
-  csv_reader = csv.reader(file)
-
-  dataset = []
-
-  for image_file, *positions in csv_reader:
-    
-    positions = [float(position) for position in positions]
-
-    landmarks = []
-
-    triplets = [*zip(*(iter(positions),) * 3)]
-
-    for x,y,z in triplets:
-      normalized_landmark = mp.framework.formats.landmark_pb2.NormalizedLandmark()
-      normalized_landmark.x = x
-      normalized_landmark.y = y
-      normalized_landmark.z = z
-      landmarks.append(normalized_landmark)
-
-    features = feature_switcher.get_combined()["show"]
-    important = []
-    for feature in features:
-      important.extend(triplets[feature[0]])
-
-    dataset.append({
-      "filename": image_file,
-      "landmarks": Face(landmarks),
-      "vertices": positions,
-      "triplets": triplets,
-      "important": important
-    })
+dataset = load(dataset_filename)
 
 cv2.namedWindow('Selected image', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Selected image', 800, 600)
