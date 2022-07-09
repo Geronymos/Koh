@@ -1,4 +1,5 @@
 
+from scipy.spatial import KDTree
 import csv
 import mediapipe as mp
 from components.FeatureSwitcher   import FeatureSwitcher 
@@ -11,9 +12,19 @@ def load(dataset_filename):
     with open(dataset_filename, "r") as file:
       csv_reader = csv.reader(file)
 
-      feature_switcher = FeatureSwitcher()
+      # feature_switcher = FeatureSwitcher()
 
       dataset = []
+      points = []
+      files = []
+      for f, *p in csv_reader:
+          files.append(f)
+          points.append([float(e) for e in p])
+
+      return {
+              "files": files,
+              "points": KDTree(points)
+              }
 
       for image_file, *positions in csv_reader:
         
