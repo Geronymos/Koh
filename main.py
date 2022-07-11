@@ -23,29 +23,31 @@ dataset = load(dataset_filename)
 
 # def calc_important_landmarks()
 
-webcam = cv2.VideoCapture(2)
+webcam = cv2.VideoCapture(0)
 
 # while webcam.isOpened() and running:
 while True:
     success, image = webcam.read()
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
     if not success: 
       # If loading a video, use 'break' instead of 'continue'.
       print("Ignoring empty camera frame.")
       continue
 
+    image = cv2.flip(image,1)
+
     #state = key_events()
     #if state.close:
     #    break
-    drawing.drawWebcam(image)
     face = tracking.track(image)
     top_image = match(face, dataset)
-    print(top_image)
-    # drawing.drawFace(face, image)
+    print(top_image["image"])
+    drawing.drawFace(face[0], image)
     drawing.drawMatch(top_image, image)
+    drawing.drawWebcam(image)
     #drawing.drawStates(state, webcam)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
 
 
 webcam.release()
-cv.destroyAllWindows()
+cv2.destroyAllWindows()

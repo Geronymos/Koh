@@ -1,4 +1,3 @@
-
 def match(face_results, dataset):
     if not face_results.multi_face_landmarks:
         return dataset["files"][0]
@@ -17,6 +16,9 @@ def match(face_results, dataset):
 
         # print(len(dataset[0]["important"]), len(face_vertices))
 
-        top_image = dataset["files"][ dataset["points"].query(face_vertices)[1] ]
+        index = dataset["tree"].query(face_vertices)[1]
 
-        return top_image
+        return {
+                "image": dataset["files"][index],
+                "face": dataset["face"][index]
+                }
