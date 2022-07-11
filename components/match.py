@@ -1,6 +1,9 @@
 def match(face_results, dataset):
     if not face_results.multi_face_landmarks:
-        return dataset["files"][0]
+        return {
+                "image": dataset["files"][0],
+                "face": dataset["face"][0]
+                }
 
     for face_landmarks in face_results.multi_face_landmarks:
 
