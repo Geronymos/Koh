@@ -2,6 +2,7 @@ dataset
 faces.json
 *.json
 *.csv
+mp_env/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
